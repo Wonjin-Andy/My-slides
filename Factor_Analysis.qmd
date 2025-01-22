@@ -1,0 +1,351 @@
+---
+title: "Factor Analysis"
+author: Wonjin Seo
+format: 
+  revealjs:
+    slide-level: 3
+    transition: slide
+---
+
+```{r}
+#| label: setup
+
+library(readxl)
+library(scatterplot3d)
+library(rgl)
+library(psych)
+library(ggplot2)
+
+theme_set(theme_minimal())
+data <- read_excel("Seoul Survey.xlsx")
+```
+
+# What is Factor Analysis? {style="font-size: 32px; text-align: center;"}
+
+## What is Factor Analysis? {style="font-size: 28px;"}
+
+**Factors** : a lower number of unobserved latent variables whose variations can be inferred from observed, correlated variables.
+
+::: {style="height: 25px;"}
+:::
+
+$$
+X_{k \times n}-\bar{X}_{k\times 1}\cdot 1_{1\times n}=L_{k\times p}\cdot F_{p \times n}+\varepsilon_{k\times n}
+$$
+
+::: {style="height: 25px;"}
+:::
+
+Thus, it could be considered as one way to deal with measurement errors.
+
+::: {style="height: 25px;"}
+:::
+
+::: incremental
+-   $F$ indicates $\;p$ number of factors.
+
+    ::: {style="height: 30px;"}
+    :::
+
+-   $L$ means the factor loadings of each factor as columns.
+:::
+
+## Flowchart {style="font-size: 28px;"}
+
+![](images/factor%20analysis%20flowchart.png){width="50vw" style="display: block; margin-left: auto; margin-right: auto;"}
+
+## When to use? {style="font-size: 28px;"}
+
+::: columns
+::: {.column width="50%"}
+![](images/clipboard-1388273961.png){width="100%"}
+:::
+
+::: {.column width="50%"}
+![](images/clipboard-3449969228.png){width="100%"}
+:::
+:::
+
+## Assumptions {style="font-size: 28px;"}
+
+Assumptions are actually not what we assume. They are more of searching conditions.
+
+1.  $F$ and $\varepsilon$ are independent.
+
+2.  $E(F)=0$
+
+3.  $Cov(F)=I$
+
+Just like RUMs, we cannot specify the scale of the factors.
+
+::: {style="height: 30px;"}
+:::
+
+. . .
+
+$$
+Cov(X-\bar{X}\cdot 1)=Cov(L\cdot F+\varepsilon)
+$$
+
+$$
+=L\;Cov(F)\;L'+Cov(\varepsilon)=LL'+Cov(\varepsilon)
+$$
+
+$$
+Cov(X-\bar{X}\cdot 1)\equiv \Sigma=LL'+\Psi\equiv LL'+Cov(\varepsilon)
+$$
+
+# How to identify? {style="font-size: 32px; text-align: center;"}
+
+## 1. Principal Component Analysis (PCA) {style="font-size: 28px;"}
+
+PCA looks pretty similar, but it does not assume factors as preceding.
+
+It simply decomposes $\Sigma$ into eigen vectors (Eigen Value Decomposition).
+
+$$
+\Sigma=V\Lambda V'
+$$
+
+The higher the corresponding eigenvalue, the more information that axis contains about the data.
+
+We can drop some axes with small eigenvalues. (Dimensionality reduction)
+
+It corresponds to the attempt to eliminate $\Psi$. (Frobenius norm)
+
+$$
+L^*=\arg\min_{L}\Vert \Sigma-(V_p)\Lambda_p (V_p)'\Vert_F^2
+$$
+
+It does not assume that $\Psi$ is a diagonal matrix.
+
+Thus, principal factors are just formed from the data.
+
+### principal components
+
+```{r}
+#| echo: true
+
+means <- apply(data, 2, mean, na.rm = TRUE)
+sds <- apply(data, 2, sd, na.rm = TRUE)
+data_std <- scale(data, center = means, scale = sds)
+
+cov_matrix <- t(data_std) %*% data_std / (nrow(data_std) - 1)
+eigen_result <- eigen(cov_matrix)
+eigen_values <- eigen_result$values
+eigen_vectors <- eigen_result$vectors
+
+principal_components <- eigen_vectors[, 1:3]
+scores <- data_std %*% principal_components
+
+```
+
+::: {style="height: 20px;"}
+:::
+
+. . .
+
+```{r}
+print(scores[1:5,])
+```
+
+### dimension 1
+
+```{r}
+#| echo: false
+#| output-location: slide
+#| fig-align: center
+pc1 <- scores[,1]
+
+hist(pc1,col="darkgreen",breaks=40)
+```
+
+### dimension 2
+
+```{r}
+#| echo: false
+pc1 <- scores[,1]
+pc2 <- scores[,2]
+
+plot(pc1, pc2,
+     main = "PCA",
+     xlab = "PC1",
+     ylab = "PC2",
+     pch = 19,
+     cex=0.4,
+     col = "darkgreen")
+abline(h = 0, v = 0, col = "gray", lty = 2)
+
+```
+
+### dimension 3
+
+```{r}
+#| echo: false
+pc1 <- scores[,1]
+pc2 <- scores[,2]
+pc3 <- scores[,3]
+
+scatterplot3d(pc1, pc2, pc3,
+              color = "darkgreen",
+              pch = 19,
+              cex.symbols = 0.3,
+              xlab = "PC1",
+              ylab = "PC2",
+              zlab = "PC3",
+              main = "PCA")
+
+```
+
+## 2. Principal Axis Factoring (PAF) {style="font-size: 28px;"}
+
+$$
+\min_{L,\Phi}\Vert \Sigma -(LL'+\Psi)\Vert_F^2 
+$$
+
+where $\Psi$ is a diagonal matrix.
+
+[(We can actually relax this if it increases goodness-of-fit a lot. But it weakens the causuality assumption since it implies the existence of confounders.)]{style="font-size:0.75em; color:gray;"}
+
+. . .
+
+::: {style="height: 5px;"}
+:::
+
+After normalizing $X_{k\times n}$ to unit variances,
+
+::: {style="font-size:0.85em;"}
+1. $\psi^{(1)}_k=1-R^2_k$
+
+2. Decompose $\Sigma- \Psi^{(1)}_k$ (EVD) and get $L=V_p\Lambda^{1/2}_p$ with $p$ factors
+
+3. Compute communalities $h_k^2=\sum_p\ell_{pk}^2$
+
+4. $\psi^{(2)}_k=1-h_k^2$
+:::
+
+
+. . .
+
+::: {style="height: 5px;"}
+:::
+
+Communality stands for how well the item is explained by factors (0-1).
+
+PAF incorporates iid error terms, enabling the computation of the preceding factors.
+
+## Rotation {style="font-size: 28px;"}
+
+$$
+LL'=(LQ)(LQ)'\;\; \text{ if }QQ'=I
+$$
+
+. . .
+
+1.  Varimax Rotation : maximizes the sum of the variances of the squared loadings
+
+    $$
+    \min \sum_f(\frac{1}{k}\sum_k (\ell_{kf}^2-\bar{\ell^2_{f}})^2)
+    $$
+
+. . .
+
+2.  Oblimin Rotation : allows for correlation among ractors
+
+# The procedure {style="font-size: 32px; text-align: center;"}
+
+## Exploratory Factor Analysis (EFA) {style="font-size: 28px;"}
+
+::: {style="height: 30px;"}
+:::
+
+-   see Cronbach's Alpha to check reliability. $$
+    \alpha = \frac{K}{K-1} \left(1-\frac{\sum_i\sigma_{I_i}^2}{\sigma_{total}^2}\right)
+    $$
+-   Determine the number of factors by looking eigen values. (Scree plot)
+
+## Exploratory Factor Analysis (EFA) {style="font-size: 28px;"}
+
+::: {style="height: 30px;"}
+:::
+
+```{r}
+#| echo: true
+
+# correlation matrix
+cor_matrix <- cor(data, use = "complete.obs", method = "pearson")
+
+# PAF
+fa_result <- fa(r = cor_matrix, 
+                nfactors = 3, 
+                fm = "pa",          # Principal Axis Factoring
+                rotate = "varimax")  # Varimax rotation
+
+eig_values <- eigen(cor_matrix)$values
+
+# Dataframe for screeplot
+scree_df <- data.frame(
+  Factor = 1:length(eig_values),
+  Eigenvalue = eig_values
+)
+
+```
+
+------------------------------------------------------------------------
+
+```{r}
+#| fig-width: 6.5
+#| fig-height: 3.5
+ggplot(scree_df, aes(x = Factor, y = Eigenvalue)) +
+  geom_point(color = "blue", size = 3) +
+  geom_line(color = "blue") +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") + 
+  scale_x_continuous(breaks = 1:length(eig_values)) +
+  labs(title = "Scree Plot",
+       x = "Factors",
+       y = "Eigen Values") +
+  theme_minimal()
+```
+
+## Confirmatory Factor Analysis (CFA) {style="font-size: 28px;"}
+
+-   See if factor loadings are all big enough.
+
+::: {style="height: 15px;"}
+:::
+
+-   We can exclude some items with low factor loadings can try again.
+
+    (Low factor loadings mean those item does not reflect target latent factors well.)
+
+::: {style="height: 15px;"}
+:::
+
+-   Also, check if the covariances of factors are not too high.
+
+    (If so, it might indicate that factors are indistinguishable.)
+
+## Implications {style="font-size: 28px;"}
+
+To me, it does not look plausible to label the factors if there are two or more. (However, the conclusion that these items are measuring more than one factor can be itself meaningful.)
+
+::: {style="height: 15px;"}
+:::
+
+. . .
+
+If we can find one compelling factor from the items, it may be a better option than the naive average.
+
+::: {style="height: 15px;"}
+:::
+
+. . .
+
+Also we can look into factor loadings and try interpreting "what we actually extract".
+
+::: {style="height: 15px;"}
+:::
+
+. . .
+
+Or we can drop some items with low factor loadings but we have to consider what that item is and how it contributes to the notion of "what we extract".

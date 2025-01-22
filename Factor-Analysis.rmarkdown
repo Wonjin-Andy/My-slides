@@ -1,0 +1,265 @@
+---
+title: "Quarto_document"
+format: html
+editor: visual
+---
+
+
+
+# Factor Analysis
+
+## What is Factor Analysis?
+
+**Factors** : a lower number of unobserved latent variables whose variations can be inferred from observed, correlated variables.
+
+Thus, it could be considered as one way to deal with measurement errors.
+
+$$
+X_{k \times n}-\bar{X}_{k\times 1}\cdot 1_{1\times n}=L_{k\times p}\cdot F_{p \times n}+\varepsilon_{k\times n}
+$$
+
+$F$ indicates $p$ number of factors and $L$ means the factor loadings of each factor as columns.
+
+
+
+```{mermaid}
+flowchart TD
+  linkStyle default interpolate linear;
+  
+  %% Nodes
+Factor1 --> Item1 & Item2 & Item3 & Item4
+Factor2 --> Item1 & Item2 & Item3 & Item4
+```
+
+
+
+## When to use?
+
+::: {style="display: flex; justify-content: space-between;"}
+![](images/clipboard-3449969228.png){width="244" height="288"}
+
+![](images/clipboard-1388273961.png){width="244" height="288"}
+:::
+
+## Assumptions
+
+Assumptions are actually not what we assume. They are more of searching conditions.
+
+1.  $F$ and $\varepsilon$ are independent.
+
+2.  $E(F)=0$
+
+3.  $Cov(F)=I$
+
+Just like RUMs, we cannot specify the scale of the factors.
+
+$$
+Cov(X-\bar{X}\cdot 1)=Cov(L\cdot F+\varepsilon)
+$$ $$
+=L\;Cov(F)\;L'+Cov(\varepsilon)=LL'+Cov(\varepsilon)
+$$
+
+$$
+Cov(X-\bar{X}\cdot 1)\equiv \Sigma=LL'+\Psi\equiv LL'+Cov(\varepsilon)
+$$
+
+## How to identify?
+
+### 1. Principal Component Analysis (PCA)
+
+PCA looks pretty similar, but it does not assume factors as preceding.
+
+It simply decomposes $\Sigma$ into eigen vectors (Eigen Value Decomposition).
+
+$$
+\Sigma=V\Lambda V'
+$$
+
+The higher the corresponding eigenvalue, the more information that axis contains about the data.
+
+We can drop some axes with small eigenvalues. (Dimensionality reduction)
+
+It corresponds to the attempt to eliminate $\Psi$. (Frobenius norm)
+
+$$
+L^*=\arg\min_{L}\Vert \Sigma-(V_p)\Lambda_p (V_p)'\Vert_F^2
+$$
+
+It does not assume that $\Psi$ is a diagonal matrix.
+
+Thus, principal factors are just formed from the data.
+
+
+
+```{r}
+#| echo: false
+library(readxl)
+library(scatterplot3d)
+library(rgl)
+data <- read_excel("Seoul Survey.xlsx")
+
+head(data)
+
+```
+
+```{r}
+means <- apply(data, 2, mean, na.rm = TRUE)
+
+sds <- apply(data, 2, sd, na.rm = TRUE)
+
+data_std <- scale(data, center = means, scale = sds)
+
+cov_matrix <- t(data_std) %*% data_std / (nrow(data_std) - 1)
+
+```
+
+```{r}
+eigen_result <- eigen(cov_matrix)
+
+eigen_values <- eigen_result$values
+
+eigen_vectors <- eigen_result$vectors
+
+principal_components <- eigen_vectors[, 1:3]
+
+scores <- data_std %*% principal_components
+
+scores[1:7,]
+```
+
+```{r}
+
+pc1 <- scores[,1]
+
+hist(pc1,col="darkgreen",breaks=40)
+```
+
+```{r}
+
+pc1 <- scores[,1]
+pc2 <- scores[,2]
+
+plot(pc1, pc2,
+     main = "PCA",
+     xlab = "PC1",
+     ylab = "PC2",
+     pch = 19,
+     cex=0.4,
+     col = "darkgreen")
+abline(h = 0, v = 0, col = "gray", lty = 2)
+
+```
+
+```{r}
+
+pc1 <- scores[,1]
+pc2 <- scores[,2]
+pc3 <- scores[,3]
+
+scatterplot3d(pc1, pc2, pc3,
+              color = "darkgreen",
+              pch = 19,
+              cex.symbols = 0.3,
+              xlab = "PC1",
+              ylab = "PC2",
+              zlab = "PC3",
+              main = "PCA")
+
+```
+
+
+
+### 2. Principal Axis Factoring (PAF)
+
+$$
+\min_{L,\Phi}\Vert \Sigma -(LL'+\Psi)\Vert_F^2 
+$$
+
+where $\Psi$ is a diagonal matrix.
+
+After normalizing $X_{k\times n}$ to unit variances,
+
+1.  $\psi^{(1)}_k=1-R^2_k$
+
+2.  Decompose $\Sigma- \Psi^{(1)}_k$ (EVD) and get $L=V_p\Lambda^{1/2}_p$ with $p$ factors
+
+3.  Compute communalities $h_k^2=\sum_p\ell_{pk}^2$
+
+4.  $\psi^{(2)}_k=1-h_k^2$
+
+Communality stands for how well the item is explained by factors (0-1).
+
+PAF assumes that the error terms are iid, enabling the computation of the preceding factors.
+
+### Rotation
+
+$$
+LL'=(LQ)(LQ)'\;\; \text{ if }QQ'=I
+$$
+
+1.  Varimax Rotation : maximizes the sum of the variances of the squared loadings
+
+    $$
+    \min \sum_f(\frac{1}{k}\sum_k (\ell_{kf}^2-\bar{\ell^2_{f}})^2)
+    $$
+
+2.  Oblimin Rotation : allows for correlation among ractors
+
+## Exploratory Factor Analysis (EFA)
+
+### Scree plot
+
+
+
+```{r}
+library(psych)
+library(ggplot2)
+
+
+# correlation matrix
+cor_matrix <- cor(data, use = "complete.obs", method = "pearson")
+
+# PAF
+fa_result <- fa(r = cor_matrix, 
+                nfactors = 3, 
+                fm = "pa",          # Principal Axis Factoring
+                rotate = "varimax")  # Varimax rotation
+
+print(fa_result)
+
+
+eig_values <- eigen(cor_matrix)$values
+
+# Dataframe for screeplot
+scree_df <- data.frame(
+  Factor = 1:length(eig_values),
+  Eigenvalue = eig_values
+)
+
+# Scree plot
+ggplot(scree_df, aes(x = Factor, y = Eigenvalue)) +
+  geom_point(color = "blue", size = 3) +
+  geom_line(color = "blue") +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") + 
+  scale_x_continuous(breaks = 1:length(eig_values)) +
+  labs(title = "Scree Plot",
+       x = "Factors",
+       y = "Eigen Values") +
+  theme_minimal()
+
+```
+
+
+
+## Confirmatory Factor Analysis (CFA)
+
+## Implications
+
+To me, it does not look plausible to label the factors if there are two or more. (However, the conclusion that these items are measuring more than one factor can be itself meaningful.)
+
+If we can find one compelling factor from the items, it may be a better option than the naive average.
+
+Also we can look into factor loadings and try interpreting "what we actually extract".
+
+Or we can drop some items with low factor loadings but we have to consider what that item is and how it contributes to the notion of "what we extract".
+
